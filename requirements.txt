@@ -3,3 +3,4 @@ numpy
 pandas
 pydeck
 streamlit
+snowflake-connector-python==3.0.1
