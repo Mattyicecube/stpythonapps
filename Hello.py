@@ -1,51 +1,54 @@
-# Copyright (c) Streamlit Inc. (2018-2022) Snowflake Inc. (2022)
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
 import streamlit as st
-from streamlit.logger import get_logger
+import snowflake.connector
+import pandas as pd
 
-LOGGER = get_logger(__name__)
+# Snowflake credentials
+snowflake_credentials = {
+    'user': 'DEMOUSER',
+    'password': 'Mattyice',
+    'account': 'FV13022.east-us-2.azure',
+    'warehouse': 'TRIAL_PRACTICE_WH',
+    'database': 'HONEYCOMB',
+    'schema': 'BIZDEV'
+}
+
+# Snowflake connection
+conn = snowflake.connector.connect(**snowflake_credentials)
+cursor = conn.cursor()
+
+# Function to fetch data from Snowflake
+def fetch_data():
+    cursor.execute("SELECT * FROM SAMPLEDATA")
+    data = cursor.fetchall()
+    columns = [desc[0] for desc in cursor.description]
+    df = pd.DataFrame(data, columns=columns)
+    return df
+
+# Function to update data in Snowflake
+def update_data(df):
+    # Delete the existing data from the table
+    cursor.execute("DELETE FROM SAMPLEDATA")
+    
+    # Insert the updated data
+    for _, row in df.iterrows():
+        cursor.execute(f"INSERT INTO SAMPLEDATA VALUES ({', '.join(['%s']*len(df.columns))})", tuple(row))
+
+    conn.commit()
+
+# Streamlit app
+st.title("Moser BizDev Data Entry")
+
+# Load data from Snowflake
+data = fetch_data()
 
 
-def run():
-    st.set_page_config(
-        page_title="Hello",
-        page_icon="👋",
-    )
+# Display the data in an editable DataFrame using st.data_editor
+edited_data = st.data_editor(data, num_rows="dynamic")
 
-    st.write("# Welcome to Streamlit! 👋")
+# Update the data in Snowflake if any changes are made
+if st.button("Save Changes"):
+    update_data(edited_data)
 
-    st.sidebar.success("Select a demo above.")
-
-    st.markdown(
-        """
-        Streamlit is an open-source app framework built specifically for
-        Machine Learning and Data Science projects.
-        **👈 Select a demo from the sidebar** to see some examples
-        of what Streamlit can do!
-        ### Want to learn more?
-        - Check out [streamlit.io](https://streamlit.io)
-        - Jump into our [documentation](https://docs.streamlit.io)
-        - Ask a question in our [community
-          forums](https://discuss.streamlit.io)
-        ### See more complex demos
-        - Use a neural net to [analyze the Udacity Self-driving Car Image
-          Dataset](https://github.com/streamlit/demo-self-driving)
-        - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
-    """
-    )
-
-
-if __name__ == "__main__":
-    run()
+# Close the Snowflake connection
+cursor.close()
+conn.close()
